@@ -9,7 +9,7 @@
 - debug:
     var: super_read_only_status
 
-- name: Создать MySQL пользователя clusterAdmin
+- name: Create MySQL cluster admin user
   community.mysql.mysql_user:
     name: "{{ mysql_cluster_admin_user }}"
     host: "%"
