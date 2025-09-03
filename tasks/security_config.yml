@@ -1,0 +1,62 @@
+- name: Set SELinux to permissive mode (temporarily and persistently)
+  ansible.posix.selinux:
+    state: permissive
+    policy: targeted
+  when: ansible_os_family == "RedHat"
+
+- name: Set SELinux to permissive mode persistently
+  ansible.builtin.replace:
+    path: /etc/selinux/config
+    regexp: '^SELINUX='
+    replace: 'SELINUX=permissive'
+  when: ansible_os_family == "RedHat"
+
+- name: Configuration SSH port for firewall for {{ansible_os_family}}
+  ansible.builtin.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    state: enabled
+  when:
+    - ansible_os_family == "Debian"
+    - firewall_enabled
+
+- name: Configuration ports for firewall for {{ansible_os_family}}
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{item}}"
+    proto: tcp
+    state: enabled
+  loop: "{{ firewall_port| list }}"
+  when:
+    - ansible_os_family == "Debian"
+    - firewall_enabled
+
+- name: Configuration ports for firewall for {{ ansible_os_family }}
+  ansible.builtin.firewalld:
+    port: "{{ item }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop: "{{ firewall_port | list }}"
+  when:
+    - ansible_os_family == "RedHat"
+    - firewall_enabled
+
+- name: Ensure UFW is disabled and stopped on Debian
+  ansible.builtin.systemd:
+    name: ufw
+    state: stopped
+    enabled: no
+  when:
+    - ansible_os_family == "Debian"
+    - not firewall_enabled
+
+- name: Ensure firewalld is disabled and stopped on RedHat
+  ansible.builtin.systemd:
+    name: firewalld
+    state: stopped
+    enabled: no
+  when:
+    - ansible_os_family == "RedHat"
+    - not firewall_enabled

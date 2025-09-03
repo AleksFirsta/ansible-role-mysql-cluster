@@ -1,0 +1,43 @@
+[mysqld]
+max_connections = 451
+max_allowed_packet = 256M
+default_time_zone = "{{ansible_date_time.tz_offset| regex_replace('([+-][0-9]{2})([0-9]{2})', '\\1:\\2')}}"
+character-set-server = utf8mb4
+collation-server = utf8mb4_general_ci
+innodb_use_fdatasync = ON
+bind-address = 0.0.0.0
+report_host = {{ ansible_hostname }}
+
+binlog_transaction_dependency_tracking = WRITESET
+enforce_gtid_consistency = ON
+gtid_mode = ON
+server_id = {{ 65534 | random(seed=ansible_host) + 1 }}
+innodb_buffer_pool_size = 6G
+innodb_buffer_pool_instances = 6
+
+{% if configure_ssl_connection == true %}
+#require_secure_transport = ON
+ssl-cipher=DHE-RSA-AES256-SHA
+ssl-ca=/var/lib/mysql/ca.pem
+ssl-cert=/var/lib/mysql/server-cert.pem
+ssl-key=/var/lib/mysql/server-key.pem
+
+{% endif %}
+
+
+##innodb_buffer_pool_size # This should be set to a size of 70-80% installed Memory.
+##innodb_buffer_pool_instances # This should be set to one instance per gig of the pool 
+
+{% if ansible_os_family == 'RedHat' %}
+datadir = /var/lib/mysql
+socket = /var/lib/mysql/mysql.sock
+log-error = /var/log/mysqld.log
+pid-file = /var/run/mysqld/mysqld.pid
+{% endif %}
+
+{% if configure_ssl_connection == true %}
+#[client]
+#ssl-mode=REQUIRED
+#ssl-cert=/var/lib/mysql/client-cert.pem
+#ssl-key=/var/lib/mysql/client-key.pem
+{% endif %}

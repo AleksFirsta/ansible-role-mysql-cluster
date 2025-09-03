@@ -1,0 +1,26 @@
+- name: Set mysql-apt-config selection to MySQL 8.0 (noninteractive)
+  ansible.builtin.debconf:
+    name: mysql-apt-config
+    question: mysql-apt-config/select-server
+    value: mysql-8.0
+    vtype: select
+  when: ansible_os_family == "Debian"
+
+- name: Download MySQL APT config package
+  ansible.builtin.get_url:
+    url: "{{ debian_repo_url }}"
+    dest: /tmp/mysql-apt-config.deb
+    mode: '0644'
+  when: ansible_os_family == "Debian"
+
+- name: Install MySQL APT config package
+  ansible.builtin.apt:
+    deb: /tmp/mysql-apt-config.deb
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: ansible_os_family == "Debian"
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+  when: ansible_os_family == "Debian"

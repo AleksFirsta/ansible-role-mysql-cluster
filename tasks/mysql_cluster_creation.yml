@@ -1,0 +1,100 @@
+- name: check status super_read_only
+  community.mysql.mysql_query:
+    login_user: root
+    login_unix_socket: "{{ '/var/run/mysqld/mysqld.sock' if ansible_os_family == 'Debian' }}"
+    login_password: "{{ mysql_root_pass }}"
+    query: "SHOW VARIABLES LIKE 'super_read_only';"
+  register: super_read_only_status
+
+- debug:
+    var: super_read_only_status
+
+- name: Создать MySQL пользователя clusterAdmin
+  community.mysql.mysql_user:
+    name: "{{ mysql_cluster_admin_user }}"
+    host: "%"
+    password: "{{ mysql_cluster_admin_pass | default(mysql_root_pass) }}"
+    priv: "*.*:ALL,GRANT"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_pass }}"
+    login_unix_socket: "{{ '/var/run/mysqld/mysqld.sock' if ansible_os_family == 'Debian' else '/var/lib/mysql/mysql.sock' }}"
+  when: super_read_only_status.query_result[0][0].Value != "ON"
+
+- name: Ensure Python dependencies for MySQL are installed on RedHat
+  ansible.builtin.pip:
+    name:
+      - cryptography
+      - PyMySQL
+    executable: pip3
+  when: ansible_os_family == "RedHat"
+
+- name: Set Bootstrap node
+  ansible.builtin.set_fact:
+    is_bootstrap_node: "{{ inventory_hostname == groups['mysql_hosts'][0] }}"
+
+- name: Copy file
+  ansible.builtin.copy:
+    src: inno_db_setup.js
+    dest: "/tmp/inno_db_setup.js"
+    mode: '0644'
+
+- name: MySQL Cluster - Check Instances status
+  ansible.builtin.command: mysqlsh -f /tmp/inno_db_setup.js
+  environment:
+    USER: "{{mysql_cluster_admin_user}}"
+    PASSWORD: "{{mysql_cluster_admin_pass | default(mysql_root_pass)}}"
+    HOST: "{{ inventory_hostname }}"
+    PORT: "3306"
+
+- name: MySQL Cluster - Create cluster
+  ansible.builtin.command: mysqlsh -f /tmp/inno_db_setup.js
+  environment:
+    USER: "{{mysql_cluster_admin_user}}"
+    PASSWORD: "{{mysql_cluster_admin_pass | default(mysql_root_pass)}}"
+    HOST: "{{ inventory_hostname }}"
+    PORT: "3306"
+    CLUSTER_NAME: "{{ mysql_cluster_name }}"
+    ACTION: "createCluster"
+  when: is_bootstrap_node
+
+
+- name: Set non-bootstrap nodes
+  ansible.builtin.set_fact:
+    non_bootstrap_nodes: "{{ groups['mysql_hosts'] | difference([groups['mysql_hosts'][0]]) }}"
+
+
+- name: MySQL Cluster - Add nodes
+  ansible.builtin.command: mysqlsh -f /tmp/inno_db_setup.js
+  environment:
+    USER: "{{ mysql_cluster_admin_user }}"
+    PASSWORD: "{{ mysql_cluster_admin_pass | default(mysql_root_pass) }}"
+    HOST: "{{ inventory_hostname }}"
+    PORT: "3306"
+    ACTION: "addNodes"
+    MYSQL_HOST: "{{item}}"
+  loop: "{{ non_bootstrap_nodes }}"
+  when: is_bootstrap_node
+
+- name: MySQL Cluster - change topology
+  ansible.builtin.command: mysqlsh -f /tmp/inno_db_setup.js
+  environment:
+    USER: "{{ mysql_cluster_admin_user }}"
+    PASSWORD: "{{ mysql_cluster_admin_pass | default(mysql_root_pass) }}"
+    HOST: "{{ inventory_hostname }}"
+    PORT: "3306"
+    ACTION: "addNodes"
+    MYSQL_HOST: "{{item}}"
+    TOPOLOGY_MODE: "{{ mysql_topology_type | default('') }}"
+  
+  loop: "{{ non_bootstrap_nodes }}"
+  when: mysql_topology_type is defined and is_bootstrap_node
+
+
+
+
+
+
+
+
+  

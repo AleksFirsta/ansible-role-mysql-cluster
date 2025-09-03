@@ -1,0 +1,31 @@
+---
+# tasks file for mysql-cluster
+- name: Configure list of servers in etc/hosts
+  import_tasks: config_etc_hosts.yml
+
+- name: Security configuration
+  import_tasks: security_config.yml
+
+- name: Include GPG keys tasks
+  include_tasks: "gpg_keys_{{ ansible_os_family }}.yml"
+
+- name: Install repository
+  include_tasks: "install_repo_{{ ansible_os_family }}.yml"
+
+- name: Install MySQL community server
+  import_tasks: install_community_server.yml
+
+- name: Run MySQL
+  import_tasks: run_mysql.yml
+
+- name: Change temporary MySQL root password
+  import_tasks: change_temp_pass_mysql.yml
+
+- name: Setup MySQL config file
+  import_tasks: mysql_config.yml
+
+- name: Apply handlers now
+  meta: flush_handlers
+
+- name: MySQL cluster creation
+  import_tasks: mysql_cluster_creation.yml

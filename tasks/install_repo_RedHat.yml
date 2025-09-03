@@ -1,0 +1,35 @@
+
+
+- name: Set MySQL repo RPM URL based on OS major version
+  set_fact:
+    mysql_repo_rpm_url: "{{ mysql_repo_rpm_urls[ansible_distribution_major_version] }}"
+  when: ansible_os_family == "RedHat"
+
+- name: Disable MySQL module
+  ansible.builtin.command: dnf module disable -y mysql
+  when: ansible_os_family == "RedHat"
+
+- name: Download MySQL repo RPM
+  ansible.builtin.get_url:
+    url: "{{ mysql_repo_rpm_url }}"
+    dest: /tmp/mysql-release.rpm
+    mode: '0644'
+  when: ansible_os_family == "RedHat"
+
+- name: Install MySQL repo RPM
+  ansible.builtin.yum:
+    name: /tmp/mysql-release.rpm
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Enable mysql-innovation-community repo
+  ansible.builtin.command: dnf config-manager --set-enabled mysql-innovation-community
+  when: ansible_os_family == "RedHat"
+
+- name: Clean all dnf metadata
+  ansible.builtin.command: dnf clean all
+  when: ansible_os_family == "RedHat"
+
+- name: Refresh dnf cache
+  ansible.builtin.command: dnf makecache --refresh
+  when: ansible_os_family == "RedHat"

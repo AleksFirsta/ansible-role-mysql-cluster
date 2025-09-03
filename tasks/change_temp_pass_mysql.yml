@@ -1,0 +1,52 @@
+- name: Extract temporary MySQL root password from log (RedHat only)
+  ansible.builtin.command: "grep 'temporary password' /var/log/mysqld.log"
+  register: mysql_temp_password_raw
+  changed_when: false
+  failed_when: mysql_temp_password_raw.stdout == ""
+  when: ansible_os_family == "RedHat"
+
+- name: Set temporary MySQL root password fact (RedHat only)
+  ansible.builtin.set_fact:
+    mysql_temp_password: "{{ mysql_temp_password_raw.stdout_lines[0] | regex_search('temporary password.*: (.+)$', '\\1') }}"
+  when: ansible_os_family == "RedHat"
+
+- name: Set empty password for MySQL root (Debian only)
+  ansible.builtin.set_fact:
+    mysql_temp_password: ""
+  when: ansible_os_family == "Debian"
+
+- name: Check current MySQL root password
+  ansible.builtin.shell: 'mysql -uroot -p"{{ mysql_root_pass }}" -e "SELECT 1;"'
+  args:
+    executable: /bin/bash
+  register: mysql_check_pass
+  ignore_errors: true
+  changed_when: false
+  failed_when: false
+
+- name: Change MySQL root password RHEL
+  ansible.builtin.shell: >
+    sudo mysql -uroot -p'{{mysql_temp_password[0]}}'
+    --connect-expired-password
+    -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysql_root_pass }}';"
+  when:
+    - mysql_check_pass.rc != 0
+    - ansible_os_family == "RedHat"
+  args:
+    executable: /bin/bash
+  register: mysql_root_pass_change
+  changed_when: "'ERROR' not in mysql_root_pass_change.stderr"
+  failed_when: "'ERROR' in mysql_root_pass_change.stderr"
+
+- name: Change MySQL root password UBUNTU
+  ansible.builtin.shell: >
+    sudo mysql -uroot -p
+    '{{ mysql_temp_password }}'
+    -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysql_root_pass }}';"
+  when:
+    - mysql_check_pass.rc != 0 and ansible_os_family == "Debian"
+  args:
+    executable: /bin/bash
+  register: mysql_root_pass_change
+  changed_when: "'ERROR' not in mysql_root_pass_change.stderr"
+  failed_when: "'ERROR' in mysql_root_pass_change.stderr"

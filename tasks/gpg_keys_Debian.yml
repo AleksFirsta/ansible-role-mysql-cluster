@@ -1,0 +1,7 @@
+- name: Download GPG keys to keyrings directory
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "/usr/share/keyrings/{{ item.filename }}"
+    mode: '0644'
+  loop: "{{ gpg_keys }}"
+  when: ansible_os_family == "Debian"

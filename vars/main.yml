@@ -1,0 +1,16 @@
+---
+# vars file for mysql-cluster
+gpg_keys:
+  - url: https://repo.mysql.com/RPM-GPG-KEY-mysql
+    filename: mysql.gpg
+  - url: https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
+    filename: mysql-2022.gpg
+  - url: https://repo.mysql.com/RPM-GPG-KEY-mysql-2023
+    filename: mysql-2023.gpg
+
+mysql_repo_rpm_urls:
+  "7": "https://repo.mysql.com/mysql80-community-release-el7.rpm"
+  "8": "https://repo.mysql.com/mysql80-community-release-el8.rpm"
+  "9": "https://repo.mysql.com/mysql80-community-release-el9.rpm"
+
+debian_repo_url: https://repo.mysql.com/mysql-apt-config.deb

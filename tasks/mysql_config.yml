@@ -1,0 +1,94 @@
+---
+- name: Create MySQL SSL directory
+  ansible.builtin.file:
+    path: /var/lib/mysql/mysql_ssl
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0755'
+  when: configure_ssl_connection | default(false)
+
+- name: Fetch SSL certificates from the first host in mysql_hosts group
+  ansible.builtin.fetch:
+    src: "/var/lib/mysql/{{ item }}"
+    dest: "/tmp/fetched_ssl_certs/{{ groups['mysql_hosts'][0] }}/"
+    flat: yes
+  loop:
+    - ca.pem
+    - client-cert.pem
+    - client-key.pem
+    - server-cert.pem
+    - server-key.pem
+  delegate_to: "{{ groups['mysql_hosts'][0] }}"
+  run_once: true
+  when: configure_ssl_connection | default(false) and
+        inventory_hostname == groups['mysql_hosts'][0]
+
+- name: Copy SSL certificates to all mysql hosts
+  ansible.builtin.copy:
+    src: "/tmp/fetched_ssl_certs/{{ groups['mysql_hosts'][0] }}/{{ item }}"
+    dest: "/var/lib/mysql/mysql_ssl/{{ item }}"
+    owner: mysql
+    group: mysql
+    mode: '0644'
+  loop:
+    - ca.pem
+    - client-cert.pem
+    - client-key.pem
+    - server-cert.pem
+    - server-key.pem
+  when: configure_ssl_connection | default(false) and
+        inventory_hostname != groups['mysql_hosts'][0]
+
+- name: Deploy mysql config file on Debian
+  ansible.builtin.template:
+    src: mysql.cnf.j2
+    dest: /etc/mysql/conf.d/mysql.cnf
+    owner: root
+    group: root
+    mode: '0644'
+  when: ansible_os_family == "Debian"
+  notify: Restart MySQL
+
+- name: Deploy mysql config file on RedHat
+  ansible.builtin.template:
+    src: mysql.cnf.j2
+    dest: /etc/my.cnf
+    owner: root
+    group: root
+    mode: '0644'
+  when: ansible_os_family == "RedHat"
+  notify: Restart MySQL
+
+- name: Get current value of sql_generate_invisible_primary_key
+  ansible.builtin.shell: |
+    mysql -uroot -p'{{ mysql_root_pass }}' -N -e "SHOW VARIABLES LIKE 'sql_generate_invisible_primary_key';"
+  args:
+    executable: /bin/bash
+  register: sql_gen_invis_pk_before
+
+- name: Print current sql_generate_invisible_primary_key before change
+  ansible.builtin.debug:
+    msg: "current value: {{ sql_gen_invis_pk_before.stdout }}"
+
+- name: Enable sql_generate_invisible_primary_key=1 if not already set
+  ansible.builtin.shell: |
+    mysql -uroot -p'{{ mysql_root_pass }}' -e "SET PERSIST sql_generate_invisible_primary_key=1;"
+  register: set_persist_result
+  changed_when: "'Query OK' in set_persist_result.stdout"
+  failed_when: set_persist_result.rc != 0
+  when: sql_gen_invis_pk_before.stdout.split('\t')[1] != '1'
+  notify: Restart MySQL
+
+- name: Get current value of sql_generate_invisible_primary_key after change
+  ansible.builtin.shell: |
+    mysql -uroot -p'{{ mysql_root_pass }}' -N -e "SHOW VARIABLES LIKE 'sql_generate_invisible_primary_key';"
+  args:
+    executable: /bin/bash
+  register: sql_gen_invis_pk_after
+  when: set_persist_result is defined and set_persist_result.changed
+
+- name: Print current sql_generate_invisible_primary_key after change
+  ansible.builtin.debug:
+    msg: "current value after changes: {{ sql_gen_invis_pk_after.stdout }}"
+  when: set_persist_result is defined and set_persist_result.changed
