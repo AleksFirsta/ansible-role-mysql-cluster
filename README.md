@@ -141,7 +141,6 @@ License
 
 GPL-3.0
 
-Author Information
+Other
 ------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+[![asciicast](https://asciinema.org/a/8f5KmFqAZeHS8rJBYylBrsZa5.svg)](https://asciinema.org/a/8f5KmFqAZeHS8rJBYylBrsZa5)
